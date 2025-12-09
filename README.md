@@ -21,7 +21,6 @@ Please install by following guide: [uv installation](https://github.com/astral-s
 The project requires Python 3.12. Please install and pin the version using uv:
 ```
 uv python install 3.12
-cd [repository folder]
 uv python pin 3.12
 ```
 
