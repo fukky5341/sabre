@@ -455,6 +455,7 @@ class RelationalAnalysis:
                 print("Unbounded ray (nonzeros):", nz[:20], " ...")  # 長い場合は一部表示
             except gp.GurobiError:
                 pass
+            print(f"Model unbounded (status={status})")
             model.write("model.lp")
             raise RuntimeError(f"LP is unbounded, check model.ilp for details. (status={model.status})")
         else:
@@ -469,22 +470,35 @@ class RelationalAnalysis:
 
         model.setObjective(target, gp.GRB.MAXIMIZE)
         model.optimize()
-        if model.status == gp.GRB.OPTIMAL:
+
+        status = model.status
+        if status == gp.GRB.INF_OR_UNBD:
+            model.setParam("DualReductions", 0)
+            model.optimize()
+            status = model.status
+        if status == gp.GRB.OPTIMAL:
             return model.ObjVal
-        elif model.status == gp.GRB.INFEASIBLE:
-            print(f"Model infeasible (status={model.status})")
-            model.computeIIS()
-            model.write("model.ilp")
+        elif status == gp.GRB.INFEASIBLE:
+            print(f"Model infeasible (status={status})")
+            # model.computeIIS()
+            # model.write("model.ilp")
             model.write("model.lp")
             return None
-        elif model.status == gp.GRB.UNBOUNDED:
-            print(f"Model unbounded (status={model.status})")
-            model.computeIIS()
-            model.write("model.ilp")
+        elif status == gp.GRB.UNBOUNDED:
+            try:
+                vars_ = model.getVars()
+                ray = model.getAttr(gp.GRB.Attr.UnbdRay, vars_)
+                nz = [(v.VarName, val) for v, val in zip(vars_, ray) if abs(val) > 1e-12]
+                print("Unbounded ray (nonzeros):", nz[:20], " ...")  # 長い場合は一部表示
+            except gp.GurobiError:
+                pass
+            print(f"Model unbounded (status={status})")
+            # model.computeIIS()
+            # model.write("model.ilp")
             model.write("model.lp")
-            raise RuntimeError(f"LP is unbounded, check model.ilp for details. (status={model.status})")
+            raise RuntimeError(f"LP is unbounded, check model.ilp for details. (status={status})")
         else:
-            raise RuntimeError(f"LP optimization failed with status {model.status}")
+            raise RuntimeError(f"LP optimization failed with status {status}")
 
     def remove_model_constraints(self, model, layer_idx, pos, inp1_lb, inp1_ub, inp2_lb, inp2_ub, d_lb, d_ub):
         # note: layer_idx indicates the preactivation layer of lubs index
